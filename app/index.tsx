@@ -14,6 +14,7 @@ import { useTheme } from '../src/theme/ThemeContext';
 import { fonts, spacing } from '../src/theme/tokens';
 import { MoodValue } from '../src/types';
 import { MOODS } from '../src/lib/moodMeta';
+import { InstallPrompt } from '../src/components/pwa/InstallPrompt';
 
 const SECTIONS: { href: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { href: '/journal', label: 'Journal', icon: 'book-outline' },
@@ -79,6 +80,8 @@ export default function Home() {
           Me — l'IA qui grandit avec toi.
         </Text>
       </Animated.View>
+
+      <InstallPrompt />
 
       <PressableScale onPress={() => router.push('/chat')} gaze={false} style={{ alignSelf: 'center' }}>
         <Creature mood={mood} gaze={gaze ?? undefined} size={128} autoSleep bounceToken={bounceToken} />
