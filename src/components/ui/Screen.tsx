@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, ScrollViewProps, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import { useTheme } from '../../theme/ThemeContext';
 
 interface ScreenProps extends ScrollViewProps {
@@ -33,7 +34,15 @@ export function Screen({ children, scroll = true, contentContainerStyle, ...rest
         start={{ x: 0.15, y: 0 }}
         end={{ x: 0.9, y: 1 }}
       />
-      <Content {...(contentProps as any)}>{children}</Content>
+      <Content {...(contentProps as any)}>
+        <Animated.View
+          entering={SlideInRight.duration(360).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutLeft.duration(220).easing(Easing.in(Easing.cubic))}
+          style={scroll ? undefined : { flex: 1 }}
+        >
+          {children}
+        </Animated.View>
+      </Content>
     </View>
   );
 }
