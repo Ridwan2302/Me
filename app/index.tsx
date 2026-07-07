@@ -29,6 +29,7 @@ const SECTIONS: { href: string; label: string; icon: keyof typeof Ionicons.glyph
   { href: '/notes', label: 'Notes', icon: 'document-text-outline' },
   { href: '/people', label: 'Personnes', icon: 'people-outline' },
   { href: '/memory-center', label: 'Mémoire IA', icon: 'hardware-chip-outline' },
+  { href: '/commands', label: 'Commandes', icon: 'help-circle-outline' },
 ];
 
 function useGreeting() {
@@ -100,6 +101,27 @@ export default function Home() {
     setTimeout(() => setMood('idle'), 2000);
   };
 
+  const handleHug = () => {
+    setMood('celebrating');
+    bounce();
+    setTimeout(() => bounce(), 180);
+    spawnParticles(['🫂', '💕', '💜']);
+    setTimeout(() => setMood('idle'), 2200);
+  };
+
+  const handleTickle = () => {
+    setMood('surprised');
+    bounce();
+    spawnParticles(['😆', '🤭']);
+    setTimeout(() => setMood('idle'), 1200);
+  };
+
+  const handleTuckIn = () => {
+    setMood('sleepy');
+    spawnParticles(['🌙', '💤']);
+    setTimeout(() => setMood('idle'), 2800);
+  };
+
   return (
     <Screen>
       <Animated.View entering={FadeInDown.duration(500)}>
@@ -114,7 +136,7 @@ export default function Home() {
       <View onLayout={(e) => setStageWidth(e.nativeEvent.layout.width)}>
         <PressableScale
           onPress={() => router.push('/chat')}
-          onLongPress={handlePet}
+          onLongPress={handleHug}
           delayLongPress={350}
           gaze={false}
         >
@@ -138,7 +160,15 @@ export default function Home() {
         ))}
       </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: -spacing.sm }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: 10,
+          marginTop: -spacing.sm,
+        }}
+      >
         <PressableScale onPress={handlePet} gaze={false}>
           <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
             <Text style={{ fontSize: 15 }}>🤗</Text>
@@ -149,6 +179,18 @@ export default function Home() {
           <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
             <Text style={{ fontSize: 15 }}>🍪</Text>
             <Text style={[styles.petFeedLabel, { color: theme.textPrimary }]}>Nourrir</Text>
+          </View>
+        </PressableScale>
+        <PressableScale onPress={handleTickle} gaze={false}>
+          <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
+            <Text style={{ fontSize: 15 }}>🪶</Text>
+            <Text style={[styles.petFeedLabel, { color: theme.textPrimary }]}>Chatouiller</Text>
+          </View>
+        </PressableScale>
+        <PressableScale onPress={handleTuckIn} gaze={false}>
+          <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
+            <Text style={{ fontSize: 15 }}>🌙</Text>
+            <Text style={[styles.petFeedLabel, { color: theme.textPrimary }]}>Border</Text>
           </View>
         </PressableScale>
       </View>
