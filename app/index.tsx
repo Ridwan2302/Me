@@ -30,7 +30,13 @@ const SECTIONS: { href: string; label: string; icon: keyof typeof Ionicons.glyph
 ];
 
 function useGreeting() {
-  return useMemo(() => 'Aujourd\'hui, c\'est un jour spécial 🎂', []);
+  return useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 5) return 'Encore réveillé·e ?';
+    if (h < 12) return 'Bonjour';
+    if (h < 18) return 'Bel après-midi';
+    return 'Bonsoir';
+  }, []);
 }
 
 export default function Home() {
@@ -49,9 +55,9 @@ export default function Home() {
   const [stageWidth, setStageWidth] = useState(0);
 
   useEffect(() => {
-    setMood('celebrating');
+    setMood('happy');
     bounce();
-    const t = setTimeout(() => setMood('idle'), 2400);
+    const t = setTimeout(() => setMood('idle'), 1600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -72,7 +78,7 @@ export default function Home() {
       <Animated.View entering={FadeInDown.duration(500)}>
         <Text style={[styles.greeting, { color: theme.textSecondary }]}>{greeting}</Text>
         <Text style={[styles.slogan, { color: theme.textPrimary }]}>
-          Happy birthday to you 🎉
+          Me — l'IA qui grandit avec toi.
         </Text>
       </Animated.View>
 
