@@ -52,6 +52,7 @@ export default function Home() {
   const addMoodLog = useAppStore((s) => s.addMoodLog);
   const memories = useAppStore((s) => s.memories);
   const [pickedMood, setPickedMood] = useState<MoodValue | null>(null);
+  const [stageWidth, setStageWidth] = useState(0);
 
   useEffect(() => {
     setMood('happy');
@@ -83,9 +84,19 @@ export default function Home() {
 
       <InstallPrompt />
 
-      <PressableScale onPress={() => router.push('/chat')} gaze={false} style={{ alignSelf: 'center' }}>
-        <Creature mood={mood} gaze={gaze ?? undefined} size={128} autoSleep bounceToken={bounceToken} />
-      </PressableScale>
+      <View onLayout={(e) => setStageWidth(e.nativeEvent.layout.width)}>
+        <PressableScale onPress={() => router.push('/chat')} gaze={false}>
+          <Creature
+            mood={mood}
+            gaze={gaze ?? undefined}
+            size={104}
+            autoSleep
+            bounceToken={bounceToken}
+            roam={stageWidth > 0}
+            stageWidth={stageWidth}
+          />
+        </PressableScale>
+      </View>
 
       <Animated.View entering={FadeInDown.delay(100).duration(500)}>
         <PressableScale onPress={() => router.push('/chat')}>

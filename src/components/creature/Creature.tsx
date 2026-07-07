@@ -6,6 +6,7 @@ import Animated, {
   interpolate,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withSpring,
@@ -23,9 +24,31 @@ export interface CreatureProps {
   autoSleep?: boolean;
   bounceToken?: number;
   style?: ViewStyle;
+  /** When true, the creature autonomously wanders left/right within stageWidth, hopping as it goes. */
+  roam?: boolean;
+  stageWidth?: number;
 }
 
 const SLEEP_DELAY = 9000;
+
+// Builds a gravity-style bounce path: an initial jump/impact, then a few
+// decaying bounces, like a dropped ball settling on the floor.
+function buildBounce(peak: number, ratios: number[] = [1, 0.48, 0.2]) {
+  const jumpSteps = [];
+  let firstImpactMs = 0;
+  for (let i = 0; i < ratios.length; i++) {
+    const r = ratios[i];
+    const h = peak * r;
+    const dur = Math.max(90, Math.min(280, 200 * Math.sqrt(r)));
+    jumpSteps.push(withTiming(-h, { duration: dur, easing: Easing.out(Easing.quad) }));
+    jumpSteps.push(withTiming(0, { duration: dur, easing: Easing.in(Easing.quad) }));
+    if (i === 0) firstImpactMs = dur * 2;
+  }
+  return {
+    jump: withSequence(...jumpSteps),
+    squash: withDelay(firstImpactMs, withSequence(withTiming(1, { duration: 55 }), withTiming(0, { duration: 140 }))),
+  };
+}
 
 export function Creature({
   mood,
@@ -34,6 +57,8 @@ export function Creature({
   autoSleep = false,
   bounceToken,
   style,
+  roam = false,
+  stageWidth,
 }: CreatureProps) {
   const [dozing, setDozing] = useState(false);
   const sleepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,11 +91,18 @@ export function Creature({
   const blink = useSharedValue(0);
   const floatY = useSharedValue(0);
   const sway = useSharedValue(0);
-  const scalePop = useSharedValue(1);
   const glowPulse = useSharedValue(0.7);
   const gazeX = useSharedValue(0);
   const gazeY = useSharedValue(0);
   const armFlutter = useSharedValue(0);
+
+  // ground physics: jumpY is height above the floor (0 = resting), squash is
+  // impact deformation (0 = neutral), roamX/roamTilt drive autonomous walking.
+  const jumpY = useSharedValue(0);
+  const squash = useSharedValue(0);
+  const roamX = useSharedValue(0);
+  const roamTilt = useSharedValue(0);
+  const lastRoamX = useRef(0);
 
   useEffect(() => {
     const spring = { damping: 12, stiffness: 90 };
@@ -123,53 +155,92 @@ export function Creature({
     }
   }, [gaze?.x, gaze?.y]);
 
+  // real gravity bounce off the floor, triggered whenever bounceToken changes
   useEffect(() => {
     if (bounceToken === undefined) return;
-    scalePop.value = withSequence(
-      withTiming(1.28, { duration: 140, easing: Easing.out(Easing.quad) }),
-      withSpring(1, { damping: 6, stiffness: 140 })
-    );
+    const { jump, squash: squashAnim } = buildBounce(size * 0.55);
+    jumpY.value = jump;
+    squash.value = squashAnim;
   }, [bounceToken]);
 
-  // aperiodic blinking, skipped while dozing (slow heavy-lidded look instead)
+  // autonomous roaming: wander to a random point along the stage, hopping as it goes, then pause
   useEffect(() => {
+    if (!roam || !stageWidth) return;
     let cancelled = false;
-    function scheduleBlink() {
-      const delay = 2400 + Math.random() * 3200;
-      const id = setTimeout(() => {
+    let innerTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const range = Math.max(0, (stageWidth - size * 1.4) / 2);
+
+    function step() {
+      if (cancelled) return;
+      const target = (Math.random() * 2 - 1) * range;
+      const distance = Math.abs(target - lastRoamX.current);
+      const direction = target > lastRoamX.current ? 1 : -1;
+      const duration = 900 + distance * 2.2;
+      lastRoamX.current = target;
+
+      roamTilt.value = withTiming(direction * 9, { duration: 220 });
+      roamX.value = withTiming(target, { duration, easing: Easing.inOut(Easing.quad) });
+
+      const { jump, squash: squashAnim } = buildBounce(size * 0.16, [1, 0.4]);
+      jumpY.value = jump;
+      squash.value = squashAnim;
+
+      const dwell = 1600 + Math.random() * 2600;
+      innerTimer = setTimeout(() => {
         if (cancelled) return;
-        if (!dozing) {
-          blink.value = withSequence(
-            withTiming(1, { duration: 90 }),
-            withTiming(0, { duration: 130 })
-          );
-        }
-        scheduleBlink();
-      }, delay);
-      return id;
+        roamTilt.value = withTiming(0, { duration: 260 });
+        step();
+      }, duration + dwell);
     }
-    const id = scheduleBlink();
+
+    const startTimer = setTimeout(step, 1200);
     return () => {
       cancelled = true;
-      clearTimeout(id as unknown as number);
+      clearTimeout(startTimer);
+      if (innerTimer) clearTimeout(innerTimer);
     };
-  }, [dozing]);
+  }, [roam, stageWidth, size]);
 
   const wrapperStyle = useAnimatedStyle(() => {
     const swayDeg = interpolate(sway.value, [0, 1], [-4, 4]);
+    const squashScaleY = 1 - squash.value * 0.22;
+    const squashScaleX = 1 + squash.value * 0.16;
     return {
       transform: [
-        { translateY: floatY.value },
-        { rotate: `${bodyTiltTarget.value + swayDeg}deg` },
-        { scale: scalePop.value },
+        { translateX: roamX.value },
+        { translateY: floatY.value + jumpY.value },
+        { rotate: `${bodyTiltTarget.value + swayDeg + roamTilt.value}deg` },
+        { scaleY: squashScaleY },
+        { scaleX: squashScaleX },
       ],
     };
   });
+
+  // subtle pseudo-3D head tilt: perspective + rotateX/Y following gaze, like the
+  // body is a glossy sphere turning toward what it's looking at.
+  const perspectiveStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 600 },
+      { rotateX: `${-gazeY.value * 10}deg` },
+      { rotateY: `${gazeX.value * 14}deg` },
+    ],
+  }));
 
   const glowStyle = useAnimatedStyle(() => ({
     opacity: interpolate(glowPulse.value, [0, 1], [0.45, 0.75]),
     transform: [{ scale: interpolate(glowPulse.value, [0, 1], [0.96, 1.06]) }],
   }));
+
+  // the ground shadow: shrinks and fades as the creature gets further from the floor
+  const shadowStyle = useAnimatedStyle(() => {
+    const height = Math.abs(floatY.value * 0.4 + jumpY.value);
+    const t = Math.min(1, height / (size * 0.6));
+    return {
+      opacity: interpolate(t, [0, 1], [0.38, 0.08]),
+      transform: [{ scaleX: interpolate(t, [0, 1], [1, 0.55]) }, { scaleY: interpolate(t, [0, 1], [1, 0.55]) }],
+    };
+  });
 
   const armLeftStyle = useAnimatedStyle(() => {
     const flutter = interpolate(armFlutter.value, [0, 1], [-4, 4]);
@@ -215,22 +286,43 @@ export function Creature({
   const pupilColor = '#3A2E63';
   const lidColor = creatureGradient[0];
 
+  const boxWidth = roam && stageWidth ? stageWidth : size * 1.9;
+  const boxHeight = size * 2.3;
+  // how far above the floor the creature's resting body-bottom sits, so the
+  // glow can center on it and the shadow can sit exactly at floor level
+  const floorMargin = size * 0.3;
+
   return (
-    <View style={[{ width: size * 1.9, height: size * 1.9, alignItems: 'center', justifyContent: 'center' }, style]}>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.glow,
-          {
-            width: size * 1.7,
-            height: size * 1.7,
-            borderRadius: size,
-            backgroundColor: creatureGlow,
-          },
-          glowStyle,
-        ]}
-      />
-      <Animated.View style={wrapperStyle}>
+    <View style={[{ width: boxWidth, height: boxHeight }, style]}>
+      <View style={styles.stage}>
+        {/* floor shadow: pinned to the floor line, independent of the creature's own transform */}
+        <View style={[styles.groundLayer, { bottom: 0 }]} pointerEvents="none">
+          <Animated.View
+            style={[
+              styles.shadow,
+              { width: size * 0.9, height: size * 0.32, borderRadius: size },
+              shadowStyle,
+            ]}
+          />
+        </View>
+        <View style={[styles.groundLayer, { bottom: floorMargin - size * 0.5 }]} pointerEvents="none">
+          <Animated.View
+            style={[
+              styles.glow,
+              {
+                width: size * 1.7,
+                height: size * 1.7,
+                borderRadius: size,
+                backgroundColor: creatureGlow,
+              },
+              glowStyle,
+            ]}
+          />
+        </View>
+
+        {/* creature: a normal flex child resting on the floor; jump/float/roam are pure transforms */}
+        <View style={[styles.groundLayer, { bottom: floorMargin }]}>
+          <Animated.View style={wrapperStyle}>
         {/* antennae */}
         <Animated.View
           style={[styles.antenna, { left: size * 0.28, height: size * 0.22 }, antennaLeftStyle]}
@@ -269,63 +361,100 @@ export function Creature({
           />
         </Animated.View>
 
-        {/* body */}
-        <LinearGradient
-          colors={creatureGradient}
-          start={{ x: 0.2, y: 0.1 }}
-          end={{ x: 0.9, y: 1 }}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <View style={{ flexDirection: 'row', gap: size * 0.1, marginBottom: size * 0.1 }}>
-            <Eye
-              size={eyeSize}
-              squint={squint}
-              blink={blink}
-              eyeScale={eyeScale}
-              pupilScale={pupilScale}
-              pupilOffsetY={pupilOffsetY}
-              gazeX={gazeX}
-              gazeY={gazeY}
-              browTilt={browTilt}
-              browSign={-1}
-              scleraColor={scleraColor}
-              pupilColor={pupilColor}
-              lidColor={lidColor}
+        {/* body: perspective wrapper gives the glossy sphere a sense of turning in 3D space */}
+        <Animated.View style={perspectiveStyle}>
+          <LinearGradient
+            colors={creatureGradient}
+            start={{ x: 0.2, y: 0.1 }}
+            end={{ x: 0.9, y: 1 }}
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            {/* ambient occlusion: grounds the sphere with a soft shadow at its base */}
+            <LinearGradient
+              colors={['rgba(30,15,50,0)', 'rgba(30,15,50,0.3)']}
+              style={StyleSheet.absoluteFill as ViewStyle}
+              start={{ x: 0.5, y: 0.6 }}
+              end={{ x: 0.5, y: 1 }}
+              pointerEvents="none"
             />
-            <Eye
-              size={eyeSize}
-              squint={squint}
-              blink={blink}
-              eyeScale={eyeScale}
-              pupilScale={pupilScale}
-              pupilOffsetY={pupilOffsetY}
-              gazeX={gazeX}
-              gazeY={gazeY}
-              browTilt={browTilt}
-              browSign={1}
-              scleraColor={scleraColor}
-              pupilColor={pupilColor}
-              lidColor={lidColor}
+            {/* soft glossy catch-light: small, round, low-opacity so it reads as a highlight, not a patch */}
+            <View
+              style={{
+                position: 'absolute',
+                width: size * 0.32,
+                height: size * 0.32,
+                borderRadius: size * 0.16,
+                top: size * 0.1,
+                left: size * 0.14,
+                backgroundColor: 'rgba(255,255,255,0.22)',
+              }}
+              pointerEvents="none"
             />
-          </View>
-          <Animated.View
-            style={[{ backgroundColor: 'rgba(58,46,99,0.5)' }, mouthStyle]}
-          />
-        </LinearGradient>
-      </Animated.View>
+
+            <View style={{ flexDirection: 'row', gap: size * 0.1, marginBottom: size * 0.1 }}>
+              <Eye
+                size={eyeSize}
+                squint={squint}
+                blink={blink}
+                eyeScale={eyeScale}
+                pupilScale={pupilScale}
+                pupilOffsetY={pupilOffsetY}
+                gazeX={gazeX}
+                gazeY={gazeY}
+                browTilt={browTilt}
+                browSign={-1}
+                scleraColor={scleraColor}
+                pupilColor={pupilColor}
+                lidColor={lidColor}
+              />
+              <Eye
+                size={eyeSize}
+                squint={squint}
+                blink={blink}
+                eyeScale={eyeScale}
+                pupilScale={pupilScale}
+                pupilOffsetY={pupilOffsetY}
+                gazeX={gazeX}
+                gazeY={gazeY}
+                browTilt={browTilt}
+                browSign={1}
+                scleraColor={scleraColor}
+                pupilColor={pupilColor}
+                lidColor={lidColor}
+              />
+            </View>
+            <Animated.View
+              style={[{ backgroundColor: 'rgba(58,46,99,0.5)' }, mouthStyle]}
+            />
+          </LinearGradient>
+        </Animated.View>
+          </Animated.View>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  glow: {
+  stage: {
+    flex: 1,
+  },
+  groundLayer: {
     position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  glow: {},
+  shadow: {
+    backgroundColor: '#2A1740',
   },
   antenna: {
     position: 'absolute',
