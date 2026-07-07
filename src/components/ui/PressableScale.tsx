@@ -11,6 +11,8 @@ import { useCreatureGaze } from '../creature/useCreatureGaze';
 interface PressableScaleProps {
   children: React.ReactNode;
   onPress?: (e: GestureResponderEvent) => void;
+  onLongPress?: (e: GestureResponderEvent) => void;
+  delayLongPress?: number;
   style?: StyleProp<ViewStyle>;
   gaze?: boolean;
   haptic?: boolean;
@@ -23,6 +25,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PressableScale({
   children,
   onPress,
+  onLongPress,
+  delayLongPress,
   style,
   gaze = true,
   haptic = true,
@@ -54,6 +58,15 @@ export function PressableScale({
           if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress?.(e);
         }}
+        onLongPress={
+          onLongPress
+            ? (e) => {
+                if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onLongPress(e);
+              }
+            : undefined
+        }
+        delayLongPress={delayLongPress}
         style={animStyle}
       >
         {children}

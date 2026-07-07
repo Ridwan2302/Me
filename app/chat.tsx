@@ -22,6 +22,7 @@ import { fonts, radii, spacing } from '../src/theme/tokens';
 import { useAppStore } from '../src/store/appStore';
 import { useCreatureStore } from '../src/store/creatureStore';
 import { analyzeMessage, generateReply } from '../src/lib/aiEngine';
+import { sendToClaude } from '../src/lib/claudeChat';
 import { ChatMessage } from '../src/types';
 import { useRouter } from 'expo-router';
 
@@ -40,12 +41,13 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
     setInput('');
-    addMessage({ role: 'user', text });
+    const userMsg = addMessage({ role: 'user', text });
     setMood('thinking');
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
 
     const analysis = analyzeMessage(text);
     analysis.memories.forEach((m) => addMemory({ ...m, source: 'chat' }));
@@ -55,15 +57,19 @@ export default function Chat() {
       lowerWords.some((w) => m.detail.toLowerCase().includes(w))
     );
 
-    setTimeout(() => {
-      const replyText = generateReply(analysis, related);
-      addMessage({ role: 'me', text: replyText, mood: analysis.mood });
-      setMood(analysis.mood);
-      if (analysis.mood === 'celebrating' || analysis.mood === 'happy') bounce();
-      setTimeout(() => setMood('idle'), 2200);
-      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
-    }, 850 + Math.random() * 500);
+    // give the "thinking" reaction a natural minimum beat while we wait for a
+    // real reply from Claude; falls back to the local heuristic if no
+    // backend is configured/reachable (see src/lib/claudeChat.ts)
+    const minDelay = new Promise<void>((resolve) => setTimeout(resolve, 700 + Math.random() * 400));
+    const history = [...messages, userMsg];
+    const freshMemories = useAppStore.getState().memories;
+    const [claudeReply] = await Promise.all([sendToClaude(history, freshMemories), minDelay]);
 
+    const replyText = claudeReply ?? generateReply(analysis, related);
+    addMessage({ role: 'me', text: replyText, mood: analysis.mood });
+    setMood(analysis.mood);
+    if (analysis.mood === 'celebrating' || analysis.mood === 'happy') bounce();
+    setTimeout(() => setMood('idle'), 2200);
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
   };
 

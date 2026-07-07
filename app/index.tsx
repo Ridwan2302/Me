@@ -15,6 +15,8 @@ import { fonts, spacing } from '../src/theme/tokens';
 import { MoodValue } from '../src/types';
 import { MOODS } from '../src/lib/moodMeta';
 import { InstallPrompt } from '../src/components/pwa/InstallPrompt';
+import { FloatingEmoji } from '../src/components/creature/FloatingEmoji';
+import { makeId } from '../src/lib/id';
 
 const SECTIONS: { href: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { href: '/journal', label: 'Journal', icon: 'book-outline' },
@@ -53,6 +55,7 @@ export default function Home() {
   const memories = useAppStore((s) => s.memories);
   const [pickedMood, setPickedMood] = useState<MoodValue | null>(null);
   const [stageWidth, setStageWidth] = useState(0);
+  const [particles, setParticles] = useState<{ id: string; emoji: string; x: number }[]>([]);
 
   useEffect(() => {
     setMood('happy');
@@ -73,6 +76,30 @@ export default function Home() {
     setTimeout(() => setMood('idle'), 1800);
   };
 
+  const spawnParticles = (emojis: string[]) => {
+    const width = stageWidth || 200;
+    const spawned = emojis.map((emoji) => ({
+      id: makeId(),
+      emoji,
+      x: width / 2 - 12 + (Math.random() * 60 - 30),
+    }));
+    setParticles((prev) => [...prev, ...spawned]);
+  };
+
+  const handlePet = () => {
+    setMood('happy');
+    bounce();
+    spawnParticles(['💜', '✨', '💜']);
+    setTimeout(() => setMood('idle'), 1800);
+  };
+
+  const handleFeed = () => {
+    setMood('celebrating');
+    bounce();
+    spawnParticles(['🍪', '😋']);
+    setTimeout(() => setMood('idle'), 2000);
+  };
+
   return (
     <Screen>
       <Animated.View entering={FadeInDown.duration(500)}>
@@ -85,7 +112,12 @@ export default function Home() {
       <InstallPrompt />
 
       <View onLayout={(e) => setStageWidth(e.nativeEvent.layout.width)}>
-        <PressableScale onPress={() => router.push('/chat')} gaze={false}>
+        <PressableScale
+          onPress={() => router.push('/chat')}
+          onLongPress={handlePet}
+          delayLongPress={350}
+          gaze={false}
+        >
           <Creature
             mood={mood}
             gaze={gaze ?? undefined}
@@ -95,6 +127,29 @@ export default function Home() {
             roam={stageWidth > 0}
             stageWidth={stageWidth}
           />
+        </PressableScale>
+        {particles.map((p) => (
+          <FloatingEmoji
+            key={p.id}
+            emoji={p.emoji}
+            x={p.x}
+            onDone={() => setParticles((prev) => prev.filter((item) => item.id !== p.id))}
+          />
+        ))}
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: -spacing.sm }}>
+        <PressableScale onPress={handlePet} gaze={false}>
+          <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
+            <Text style={{ fontSize: 15 }}>🤗</Text>
+            <Text style={[styles.petFeedLabel, { color: theme.textPrimary }]}>Caresser</Text>
+          </View>
+        </PressableScale>
+        <PressableScale onPress={handleFeed} gaze={false}>
+          <View style={[styles.petFeedBtn, { backgroundColor: theme.surfaceStrong }]}>
+            <Text style={{ fontSize: 15 }}>🍪</Text>
+            <Text style={[styles.petFeedLabel, { color: theme.textPrimary }]}>Nourrir</Text>
+          </View>
         </PressableScale>
       </View>
 
@@ -181,4 +236,13 @@ const styles = {
   cardBody: { fontFamily: fonts.body, fontSize: 13, marginTop: 2 },
   eyebrow: { fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   sectionTitle: { fontFamily: fonts.displayMedium, fontSize: 18, marginTop: spacing.lg, marginBottom: spacing.sm },
+  petFeedBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  petFeedLabel: { fontFamily: fonts.bodySemiBold, fontSize: 13 },
 };

@@ -46,14 +46,14 @@ export function Eye({
   });
 
   const pupilStyle = useAnimatedStyle(() => {
-    const p = size * 0.46 * pupilScale.value;
+    const p = size * 0.62 * pupilScale.value;
     return {
       width: p,
       height: p,
       borderRadius: p / 2,
       transform: [
-        { translateX: gazeX.value * size * 0.16 },
-        { translateY: gazeY.value * size * 0.16 + pupilOffsetY.value * size * 0.2 },
+        { translateX: gazeX.value * size * 0.1 },
+        { translateY: gazeY.value * size * 0.1 + pupilOffsetY.value * size * 0.14 },
       ],
     };
   });

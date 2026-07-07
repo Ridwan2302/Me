@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Image, StyleSheet, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
@@ -290,10 +290,13 @@ export function Creature({
     };
   });
 
-  const eyeSize = size * 0.24;
+  const eyeSize = size * 0.27;
   const scleraColor = 'rgba(255,255,255,0.95)';
-  const pupilColor = '#3A2E63';
+  const pupilColor = '#20141F';
   const lidColor = creatureGradient[0];
+  // the fur texture bakes in extra overhang beyond its circular core, so it
+  // renders larger than the body's own size and gets centered over it
+  const furSize = size * 1.5;
 
   const boxWidth = roam && stageWidth ? stageWidth : size * 1.9;
   const boxHeight = size * 2.3;
@@ -358,54 +361,38 @@ export function Creature({
           />
         </Animated.View>
 
-        {/* body: perspective wrapper gives the glossy sphere a sense of turning in 3D space */}
+        {/* body: perspective wrapper gives the furry body a sense of turning in 3D space */}
         <Animated.View style={perspectiveStyle}>
-          <LinearGradient
-            colors={creatureGradient}
-            start={{ x: 0.2, y: 0.1 }}
-            end={{ x: 0.9, y: 1 }}
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-          >
-            {/* ambient occlusion: grounds the sphere with a soft shadow at its base */}
-            <LinearGradient
-              colors={['rgba(30,15,50,0)', 'rgba(30,15,50,0.3)']}
-              style={StyleSheet.absoluteFill as ViewStyle}
-              start={{ x: 0.5, y: 0.6 }}
-              end={{ x: 0.5, y: 1 }}
-              pointerEvents="none"
+          <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+            <Image
+              source={require('../../../assets/creature/fur.png')}
+              resizeMode="contain"
+              style={{
+                position: 'absolute',
+                width: furSize,
+                height: furSize,
+                left: (size - furSize) / 2,
+                top: (size - furSize) / 2,
+              }}
             />
-            {/* wet catch-light: a soft round highlight plus a tiny bright sheen dot, like light on gel */}
+            {/* ambient occlusion: grounds the body with a soft shadow at its base */}
             <View
               style={{
                 position: 'absolute',
-                width: size * 0.34,
-                height: size * 0.34,
-                borderRadius: size * 0.17,
-                top: size * 0.09,
-                left: size * 0.13,
-                backgroundColor: 'rgba(255,255,255,0.28)',
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                overflow: 'hidden',
               }}
               pointerEvents="none"
-            />
-            <View
-              style={{
-                position: 'absolute',
-                width: size * 0.09,
-                height: size * 0.09,
-                borderRadius: size * 0.045,
-                top: size * 0.12,
-                left: size * 0.19,
-                backgroundColor: 'rgba(255,255,255,0.55)',
-              }}
-              pointerEvents="none"
-            />
+            >
+              <LinearGradient
+                colors={['rgba(30,15,50,0)', 'rgba(30,15,50,0.22)']}
+                style={StyleSheet.absoluteFill as ViewStyle}
+                start={{ x: 0.5, y: 0.6 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+            </View>
 
             <View style={{ flexDirection: 'row', gap: size * 0.1, marginBottom: size * 0.1 }}>
               <Eye
@@ -440,9 +427,9 @@ export function Creature({
               />
             </View>
             <Animated.View
-              style={[{ backgroundColor: 'rgba(58,46,99,0.5)' }, mouthStyle]}
+              style={[{ backgroundColor: 'rgba(40,25,55,0.55)' }, mouthStyle]}
             />
-          </LinearGradient>
+          </View>
         </Animated.View>
           </Animated.View>
         </View>
