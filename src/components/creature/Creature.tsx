@@ -95,6 +95,10 @@ export function Creature({
   const gazeX = useSharedValue(0);
   const gazeY = useSharedValue(0);
   const armFlutter = useSharedValue(0);
+  // gooey idle wobble: two independent slow sine loops, out of phase, so the
+  // body keeps jiggling like a soft blob of gel even at rest.
+  const jiggleX = useSharedValue(0);
+  const jiggleY = useSharedValue(0);
 
   // ground physics: jumpY is height above the floor (0 = resting), squash is
   // impact deformation (0 = neutral), roamX/roamTilt drive autonomous walking.
@@ -140,6 +144,16 @@ export function Creature({
     );
     glowPulse.value = withRepeat(
       withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+    jiggleX.value = withRepeat(
+      withTiming(1, { duration: 2100, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+    jiggleY.value = withRepeat(
+      withTiming(1, { duration: 1750, easing: Easing.inOut(Easing.sin) }),
       -1,
       true
     );
@@ -206,13 +220,15 @@ export function Creature({
     const swayDeg = interpolate(sway.value, [0, 1], [-4, 4]);
     const squashScaleY = 1 - squash.value * 0.22;
     const squashScaleX = 1 + squash.value * 0.16;
+    const goo = interpolate(jiggleX.value, [0, 1], [-0.05, 0.05]);
+    const gooInverse = interpolate(jiggleY.value, [0, 1], [0.05, -0.05]);
     return {
       transform: [
         { translateX: roamX.value },
         { translateY: floatY.value + jumpY.value },
         { rotate: `${bodyTiltTarget.value + swayDeg + roamTilt.value}deg` },
-        { scaleY: squashScaleY },
-        { scaleX: squashScaleX },
+        { scaleY: squashScaleY + gooInverse },
+        { scaleX: squashScaleX + goo },
       ],
     };
   });
@@ -260,13 +276,6 @@ export function Creature({
       ],
     };
   });
-
-  const antennaLeftStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${-14 + interpolate(sway.value, [0, 1], [-6, 6])}deg` }],
-  }));
-  const antennaRightStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${14 + interpolate(sway.value, [0, 1], [6, -6])}deg` }],
-  }));
 
   const mouthStyle = useAnimatedStyle(() => {
     const baseW = size * 0.16 + mouthSmile.value * size * 0.05;
@@ -323,18 +332,6 @@ export function Creature({
         {/* creature: a normal flex child resting on the floor; jump/float/roam are pure transforms */}
         <View style={[styles.groundLayer, { bottom: floorMargin }]}>
           <Animated.View style={wrapperStyle}>
-        {/* antennae */}
-        <Animated.View
-          style={[styles.antenna, { left: size * 0.28, height: size * 0.22 }, antennaLeftStyle]}
-        >
-          <View style={[styles.antennaTip, { backgroundColor: creatureGradient[2] }]} />
-        </Animated.View>
-        <Animated.View
-          style={[styles.antenna, { right: size * 0.28, height: size * 0.22 }, antennaRightStyle]}
-        >
-          <View style={[styles.antennaTip, { backgroundColor: creatureGradient[2] }]} />
-        </Animated.View>
-
         {/* arms */}
         <Animated.View
           style={[
@@ -384,16 +381,28 @@ export function Creature({
               end={{ x: 0.5, y: 1 }}
               pointerEvents="none"
             />
-            {/* soft glossy catch-light: small, round, low-opacity so it reads as a highlight, not a patch */}
+            {/* wet catch-light: a soft round highlight plus a tiny bright sheen dot, like light on gel */}
             <View
               style={{
                 position: 'absolute',
-                width: size * 0.32,
-                height: size * 0.32,
-                borderRadius: size * 0.16,
-                top: size * 0.1,
-                left: size * 0.14,
-                backgroundColor: 'rgba(255,255,255,0.22)',
+                width: size * 0.34,
+                height: size * 0.34,
+                borderRadius: size * 0.17,
+                top: size * 0.09,
+                left: size * 0.13,
+                backgroundColor: 'rgba(255,255,255,0.28)',
+              }}
+              pointerEvents="none"
+            />
+            <View
+              style={{
+                position: 'absolute',
+                width: size * 0.09,
+                height: size * 0.09,
+                borderRadius: size * 0.045,
+                top: size * 0.12,
+                left: size * 0.19,
+                backgroundColor: 'rgba(255,255,255,0.55)',
               }}
               pointerEvents="none"
             />
@@ -455,21 +464,6 @@ const styles = StyleSheet.create({
   glow: {},
   shadow: {
     backgroundColor: '#2A1740',
-  },
-  antenna: {
-    position: 'absolute',
-    width: 3,
-    top: -18,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-  },
-  antennaTip: {
-    position: 'absolute',
-    top: -6,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   arm: {
     position: 'absolute',
